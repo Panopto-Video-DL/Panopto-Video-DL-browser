@@ -15,5 +15,8 @@ Download video from Panopto!
 ## Usage  
 
 - Open video on Panopto website  
-- Click on **|Download|** button in the _bottom-left_ corner  
-- Paste the automatically copied link in [Panopto-Video-DL](https://github.com/Panopto-Video-DL/Panopto-Video-DL)  
+- Click on **[Download]** button in the _bottom-left_ corner  
+- Follow the instructions shown:  
+	- Paste the automatically copied link in [Panopto-Video-DL](https://github.com/Panopto-Video-DL/Panopto-Video-DL)  
+	or  
+	- Download the video directly from the newly opened tab  
