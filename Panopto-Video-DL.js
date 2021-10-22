@@ -4,7 +4,7 @@
 // @description  Download video from Panopto!
 // @icon         https://www.panopto.com/wp-content/themes/panopto/library/images/favicons/favicon-96x96.png
 // @author       Panopto-Video-DL
-// @version      3.1.0
+// @version      3.1.1
 // @copyright    2021, Panopto-Video-DL
 // @license      MIT
 // @homepageURL  https://github.com/Panopto-Video-DL
@@ -42,8 +42,6 @@
         stream = data.Delivery.PodcastStreams[0].StreamUrl;
       } catch (error) {
         console.error(error)
-        alert('Error: StreamURL not found');
-        return;
       }
 
       const element = document.createElement('a');
@@ -52,6 +50,10 @@
       element.style = 'position:absolute;bottom:40px;padding:5px 10px;text-decoration:none;cursor:pointer;';
       element.innerHTML = '<b>Download</b> <span class="material-icons" style="font-size:15px;vertical-align:middle;">file_download</span>';
       element.addEventListener('click', event => {
+        if (!stream) {
+          alert('Stream URL not ready yet');
+          return; }
+
         if (stream.endsWith('master.m3u8')) {
           if (localStorage.getItem('popup-viewed') != 'true') {
             const div = document.createElement('div');
