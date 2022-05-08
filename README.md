@@ -10,7 +10,7 @@ Download video from Panopto!
 	- [Chrome](https://chrome.google.com/webstore/detail/tampermonkey/dhdgffkkebhmkfjojejmpbldmpobfkfo)  
 	- [Firefox](https://addons.mozilla.org/en-US/firefox/addon/tampermonkey/)  
 	- [Other browser](https://www.tampermonkey.net/)  
-- Install this script from [here](https://greasyfork.org/scripts/423661-panopto-video-dl)
+- Install this script from [GreasyFork](https://greasyfork.org/scripts/423661-panopto-video-dl)
 
 ## Usage  
 
