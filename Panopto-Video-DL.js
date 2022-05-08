@@ -4,28 +4,35 @@
 // @description  Download video from Panopto!
 // @icon         https://www.panopto.com/wp-content/themes/panopto/library/images/favicons/favicon-96x96.png
 // @author       Panopto-Video-DL
-// @version      3.1.1
+// @version      3.2.0
 // @copyright    2021, Panopto-Video-DL
 // @license      MIT
 // @homepageURL  https://github.com/Panopto-Video-DL
+// @require      https://greasyfork.org/scripts/401626-notify-library/code/Notify%20Library.js
 // @match        https://*.panopto.com/Panopto/Pages/Viewer.aspx?*id=*
 // @match        https://*.panopto.eu/Panopto/Pages/Viewer.aspx?*id=*
 // @connect      panopto.com
 // @connect      panopto.eu
+// @grant        GM_addStyle
 // @grant        GM_setClipboard
 // @grant        GM_openInTab
 // @noframes
 // ==/UserScript==
 
-(function(panopto) {
+(function() {
   'use strict';
 
   const url = new URL(location.href)
   const lesson_id = url.searchParams.get('id');
+
   if (!lesson_id) {
-    alert('Failed to get Lesson ID')
+    new Notify({
+        text: 'Failed to get Lesson ID. Try to reload the page',
+        type: 'error'
+      }).show();
     return; }
 
+  addStyle('#Panopto-Video-DL{position:fixed;top:10%;left:50%;width:70%;padding:2em 3em 1em;background-color:#2d3436;transform:translateX(-50%);z-index:1050}#Panopto-Video-DL *{margin-bottom:10px;color:#fff!important;font-size:18px;}#Panopto-Video-DL > div {margin-top: 1em;}#Panopto-Video-DL ul,#Panopto-Video-DL ol,#Panopto-Video-DL li{margin:0 .5em;padding:0 .5em;list-style:decimal}#Panopto-Video-DL button{margin-left:5px;margin-right:5px;color:#000!important;font-size:16px;}#Panopto-Video-DL p{margin-top:0.5em;}#Panopto-Video-DL input{color:black!important;}')
   request({
     url: location.origin + '/Panopto/Pages/Viewer/DeliveryInfo.aspx',
     method: 'POST',
@@ -36,66 +43,52 @@
     data: 'deliveryId=' + lesson_id + '&isEmbed=true&responseType=json',
     success: function(response) {
       const data = JSON.parse(response);
-      let stream = undefined;
-
-      try {
-        stream = data.Delivery.PodcastStreams[0].StreamUrl;
-      } catch (error) {
-        console.error(error)
-      }
+      const streamUrl = data?.Delivery?.PodcastStreams[0]?.StreamUrl;
+      const streams = (data?.Delivery?.Streams || []).filter(x => x.StreamUrl != streamUrl);
 
       const element = document.createElement('a');
       element.id = 'downloadTabHeader';
       element.classList = 'event-tab-header';
-      element.style = 'position:absolute;bottom:40px;padding:5px 10px;text-decoration:none;cursor:pointer;';
+      element.style = 'position:absolute;bottom:30px;padding:5px 10px;text-decoration:none;cursor:pointer;';
       element.innerHTML = '<b>Download</b> <span class="material-icons" style="font-size:15px;vertical-align:middle;">file_download</span>';
       element.addEventListener('click', event => {
-        if (!stream) {
-          alert('Stream URL not ready yet');
+        if (!streamUrl) {
+          new Notify({
+            text: 'Stream URL not ready yet',
+            type: 'error'
+          }).show();
           return; }
 
-        if (stream.endsWith('master.m3u8')) {
+        if (streamUrl.endsWith('master.m3u8')) {
           if (localStorage.getItem('popup-viewed') != 'true') {
-            const div = document.createElement('div');
-            div.id = 'Panopto-Video-DL';
-            div.innerHTML += '<style>#Panopto-Video-DL{position:fixed;top:10%;left:50%;width:80%;padding:3em 3em 1em;background-color:#2d3436;transform:translateX(-50%);z-index:1050}#Panopto-Video-DL *:not(small){margin-bottom:10px;color:#fff!important;font-size:18px}#Panopto-Video-DL li,#Panopto-Video-DL ol{margin:0 .5em;padding:0 .5em;list-style:decimal}#Panopto-Video-DL button{margin-top:1em;margin-right:10px;color:#000!important}</style>';
-            div.innerHTML += '<h1 style="text-align:center;font-size:26px;">READ ME!</h1> <p>To download the video follow these steps:</p> <ol><li>Download this program from GitHub <a href="https://github.com/Panopto-Video-DL/Panopto-Video-DL" target="_blank">Download</a> (No installation needed) and open it</li> <li>Paste the automatically copied link</li> <li>Set the destination folder</li> <li>Wait for the download to finish</li> </ol> <p style="text-align:center;"> <button onclick="this.parentElement.parentElement.remove();">Close</button> <button onclick="localStorage.setItem(\'popup-viewed\', true);this.parentElement.parentElement.remove();">Close and don\'t show again</button> </p>';
-            document.querySelector('body').appendChild(div);
+            showModal('<h1 style="text-align:center;font-size:30px;">READ ME</h1> <p>To download the video follow these steps:</p> <ol><li>Download this program from <a href="https://github.com/Panopto-Video-DL/Panopto-Video-DL" target="_blank">GitHub</a> (No installation needed) and open it</li> <li>Paste the automatically copied link</li> <li>Set the destination folder</li> <li>Wait for the download to finish</li> </ol> <p style="text-align:center;"> <button onclick="this.parentElement.parentElement.remove();">Close</button> <button onclick="localStorage.setItem(\'popup-viewed\', true);this.parentElement.parentElement.remove();">Close and don\'t show again</button> </p>');
           }
-
-          if (typeof GM_setClipboard !== 'undefined') {
-            GM_setClipboard(stream, 'text');
-            alert('Link copied!')
-          } else {
-            navigator.clipboard.writeText(stream).then(() => {
-              alert('Link copied!')
-            }).catch(e => {
-              const div = document.createElement('div');
-              div.innerHTML += '<style>#Panopto-Video-DL p{font-size:16px}#Panopto-Video-DL input{color:black!important;}</style>';
-              div.innerHTML += '<h3>There was an error when automatically copying the download link</h3> <p> Copy it manually: <input type="text" value=""></p>';
-              div.querySelector('input').value = stream;
-              if (document.querySelector('#Panopto-Video-DL'))
-                document.querySelector('#Panopto-Video-DL').append(div)
-              else {
-                div.id = 'Panopto-Video-DL';
-                div.querySelector('style').innerText += '#Panopto-Video-DL{position:fixed;top:10%;left:50%;width:80%;padding:3em 3em 1em;background-color:#2d3436;transform:translateX(-50%);z-index:999999}';
-                document.querySelector('body').appendChild(div);
-              }
-            });
-          }
+          copyToClipboard(streamUrl);
         } else {
-          if (typeof GM_openInTab !== 'undefined') {
-            GM_openInTab(stream, false);
-          } else {
-            window.open(stream);
-          }
+          if (typeof GM_openInTab !== 'undefined')
+            GM_openInTab(streamUrl, false);
+          else
+            window.open(streamUrl);
+        }
+
+        if (streams.length && localStorage.getItem('other-source-viewed') != 'true') {
+          const modal = showModal('<h2 style="font-size:20px;">Download another source video</h2><ul></ul><p style="text-align:center;"><button onclick="this.parentElement.parentElement.remove();">Close</button><button onclick="localStorage.setItem(\'other-source-viewed\', true);this.parentElement.parentElement.remove();">Close and don\'t show again</button></p>');
+          streams.forEach((value, index) => {
+            const li = document.createElement('li');
+            li.innerHTML = value.Name.replace(/-?(\d{8}T\d+Z)+((.)?(\w+))?/g, '').replace(/_/g, ' ') + '<button>Copy</button>';
+            li.querySelector('button').addEventListener('click', (e) => { copyToClipboard(value.StreamUrl); })
+            modal.querySelector('ul').appendChild(li);
+          });
         }
       });
       document.querySelector('#eventTabControl').appendChild(element);
     },
     error: function(response) {
       console.error(response)
-      alert('Failed to get DeliveryInfo of lesson');
+      new Notify({
+        text: 'Failed to get DeliveryInfo of lesson. Request failed.',
+        type: 'error'
+      }).show();
     }
   });
 
@@ -122,4 +115,48 @@
     }
   }
 
-})(Panopto);
+  function copyToClipboard(text) {
+    if (typeof GM_setClipboard !== 'undefined') {
+      GM_setClipboard(text, 'text');
+      new Notify({
+        text: 'Link copied!',
+        type: 'success'
+      }).show();
+    } else {
+      navigator.clipboard.writeText(text).then(() => {
+        new Notify({
+          text: 'Link copied!',
+          type: 'success'
+        }).show();
+      }).catch(e => {
+        console.error(e);const modal = showModal('<h3>There was an error when copying the download link</h3> <p> Copy it manually: <input type="text" value=""></p>');
+        modal.querySelector('input').value = text;
+      });
+    }
+  }
+
+  function showModal(html) {
+    const div = document.createElement('div');
+    div.innerHTML = html;
+    if (document.querySelector('#Panopto-Video-DL')) {
+      const hr = document.createElement('hr');
+      div.prepend(hr);
+      document.querySelector('#Panopto-Video-DL').append(div);
+    } else {
+      div.id = 'Panopto-Video-DL';
+      document.querySelector('body').appendChild(div);
+    }
+    return div;
+  }
+
+  function addStyle(CSS) {
+    if (typeof GM_addStyle != 'undefined') {
+      GM_addStyle(CSS);
+    } else {
+      const style = document.createElement('style');
+      style.innerText = CSS;
+      document.head.appendChild(style);
+    }
+  }
+
+})();
