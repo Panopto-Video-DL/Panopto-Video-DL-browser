@@ -4,7 +4,7 @@
 // @description  Download video from Panopto!
 // @icon         https://www.panopto.com/wp-content/themes/panopto/library/images/favicons/favicon-96x96.png
 // @author       Panopto-Video-DL
-// @version      3.2.0
+// @version      3.2.1
 // @copyright    2021, Panopto-Video-DL
 // @license      MIT
 // @homepageURL  https://github.com/Panopto-Video-DL
@@ -42,6 +42,7 @@
     },
     data: 'deliveryId=' + lesson_id + '&isEmbed=true&responseType=json',
     success: function(response) {
+      console.log('%c Panopto-Video-DL ->', 'color:red;font-size:18px;', response)
       const data = JSON.parse(response);
       const streamUrl = data?.Delivery?.PodcastStreams[0]?.StreamUrl;
       const streams = (data?.Delivery?.Streams || []).filter(x => x.StreamUrl != streamUrl);
@@ -75,7 +76,7 @@
           const modal = showModal('<h2 style="font-size:20px;">Download another source video</h2><ul></ul><p style="text-align:center;"><button onclick="this.parentElement.parentElement.remove();">Close</button><button onclick="localStorage.setItem(\'other-source-viewed\', true);this.parentElement.parentElement.remove();">Close and don\'t show again</button></p>');
           streams.forEach((value, index) => {
             const li = document.createElement('li');
-            li.innerHTML = value.Name.replace(/-?(\d{8}T\d+Z)+((.)?(\w+))?/g, '').replace(/_/g, ' ') + '<button>Copy</button>';
+            li.innerHTML = (value.Name?.replace(/-?(\d{8}T\d+Z)+((.)?(\w+))?/g, '').replace(/_/g, ' ') || 'Stream '+(index+1)) + '<button>Copy</button>';
             li.querySelector('button').addEventListener('click', (e) => { copyToClipboard(value.StreamUrl); })
             modal.querySelector('ul').appendChild(li);
           });
