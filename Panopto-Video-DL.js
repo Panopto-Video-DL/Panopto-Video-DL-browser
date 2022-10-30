@@ -1,16 +1,20 @@
 // ==UserScript==
 // @name         Panopto-Video-DL
 // @namespace    https://github.com/Panopto-Video-DL
-// @description  Download video from Panopto!
+// @description  Video downloader for Panopto
 // @icon         https://www.panopto.com/wp-content/themes/panopto/library/images/favicons/favicon-96x96.png
 // @author       Panopto-Video-DL
-// @version      3.2.1
+// @version      3.3.0
 // @copyright    2021, Panopto-Video-DL
 // @license      MIT
-// @homepageURL  https://github.com/Panopto-Video-DL
+// @homepage     https://github.com/Panopto-Video-DL/Panopto-Video-DL-browser
+// @homepageURL  https://github.com/Panopto-Video-DL/Panopto-Video-DL-browser
+// @supportURL   https://github.com/Panopto-Video-DL/Panopto-Video-DL-browser/issues
 // @require      https://greasyfork.org/scripts/401626-notify-library/code/Notify%20Library.js
 // @match        https://*.panopto.com/Panopto/Pages/Viewer.aspx?*id=*
 // @match        https://*.panopto.eu/Panopto/Pages/Viewer.aspx?*id=*
+// @match        https://*.panopto.com/Panopto/Pages/Sessions/List.aspx*
+// @match        https://*.panopto.eu/Panopto/Pages/Sessions/List.aspx*
 // @connect      panopto.com
 // @connect      panopto.eu
 // @grant        GM_addStyle
@@ -22,116 +26,184 @@
 (function() {
   'use strict';
 
-  const url = new URL(location.href)
-  const lesson_id = url.searchParams.get('id');
+  addStyle('#Panopto-Video-DL{position:fixed;top:10%;left:50%;width:70%;padding:2em 3em 1em;background-color:#2d3436;transform:translateX(-50%);z-index:1050}#Panopto-Video-DL *{margin-bottom:10px;color:#fff!important;font-size:18px;}#Panopto-Video-DL > div {margin-top: 1em;}#Panopto-Video-DL ul,#Panopto-Video-DL ol,#Panopto-Video-DL li{margin:0 .5em;padding:0 .5em;list-style:decimal}#Panopto-Video-DL button{margin-left:5px;margin-right:5px;color:#000!important;font-size:16px;}#Panopto-Video-DL p{margin-top:0.5em;}#Panopto-Video-DL input{color:black!important;}#Panopto-Video-DL textarea{width:100%;color:black!important;resize:vertical;white-space:nowrap;}')
 
-  if (!lesson_id) {
-    new Notify({
-        text: 'Failed to get Lesson ID. Try to reload the page',
-        type: 'error'
-      }).show();
-    return; }
+  const button = document.createElement('a');
+  button.href = '#';
+  button.innerHTML = '<span class="material-icons" style="font-size:15px;margin-bottom:-0.25rem;">file_download</span> Download';
 
-  addStyle('#Panopto-Video-DL{position:fixed;top:10%;left:50%;width:70%;padding:2em 3em 1em;background-color:#2d3436;transform:translateX(-50%);z-index:1050}#Panopto-Video-DL *{margin-bottom:10px;color:#fff!important;font-size:18px;}#Panopto-Video-DL > div {margin-top: 1em;}#Panopto-Video-DL ul,#Panopto-Video-DL ol,#Panopto-Video-DL li{margin:0 .5em;padding:0 .5em;list-style:decimal}#Panopto-Video-DL button{margin-left:5px;margin-right:5px;color:#000!important;font-size:16px;}#Panopto-Video-DL p{margin-top:0.5em;}#Panopto-Video-DL input{color:black!important;}')
-  request({
-    url: location.origin + '/Panopto/Pages/Viewer/DeliveryInfo.aspx',
-    method: 'POST',
-    headers: {
-      'Accept': 'application/json, text/javascript, */*; q=0.01',
-      'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
-    },
-    data: 'deliveryId=' + lesson_id + '&isEmbed=true&responseType=json',
-    success: function(response) {
-      console.log('%c Panopto-Video-DL ->', 'color:red;font-size:18px;', response)
-      const data = JSON.parse(response);
-      const streamUrl = data?.Delivery?.PodcastStreams[0]?.StreamUrl;
-      const streams = (data?.Delivery?.Streams || []).filter(x => x.StreamUrl != streamUrl);
+  if (location.pathname.includes('/List.aspx')) {
+    button.addEventListener('click', e => {
+      e.preventDefault();
+      e.stopPropagation();
 
-      const element = document.createElement('a');
-      element.id = 'downloadTabHeader';
-      element.classList = 'event-tab-header';
-      element.style = 'position:absolute;bottom:30px;padding:5px 10px;text-decoration:none;cursor:pointer;';
-      element.innerHTML = '<b>Download</b> <span class="material-icons" style="font-size:15px;vertical-align:middle;">file_download</span>';
-      element.addEventListener('click', event => {
-        if (!streamUrl) {
-          new Notify({
-            text: 'Stream URL not ready yet',
-            type: 'error'
-          }).show();
-          return; }
+      let _t;
+      const list = (_t = document.querySelectorAll('#listTable tbody > tr a.list-title')).length ?
+            _t : (_t = document.querySelectorAll('#detailsTable tbody > tr a.detail-title')).length ?
+            _t : (_t = document.querySelectorAll('#thumbnailGrid > li a.detail-title')).length ?
+            _t : null;
+      if (!list) {
+        log('No videos found', 'error');
+        new Notify({
+          text: 'No videos found',
+          type: 'error'
+        }).show();
+        return;
+      }
 
-        if (streamUrl.endsWith('master.m3u8')) {
-          if (localStorage.getItem('popup-viewed') != 'true') {
-            showModal('<h1 style="text-align:center;font-size:30px;">READ ME</h1> <p>To download the video follow these steps:</p> <ol><li>Download this program from <a href="https://github.com/Panopto-Video-DL/Panopto-Video-DL" target="_blank">GitHub</a> (No installation needed) and open it</li> <li>Paste the automatically copied link</li> <li>Set the destination folder</li> <li>Wait for the download to finish</li> </ol> <p style="text-align:center;"> <button onclick="this.parentElement.parentElement.remove();">Close</button> <button onclick="localStorage.setItem(\'popup-viewed\', true);this.parentElement.parentElement.remove();">Close and don\'t show again</button> </p>');
-          }
-          copyToClipboard(streamUrl);
-        } else {
-          if (typeof GM_openInTab !== 'undefined')
-            GM_openInTab(streamUrl, false);
-          else
-            window.open(streamUrl);
-        }
-
-        if (streams.length && localStorage.getItem('other-source-viewed') != 'true') {
-          const modal = showModal('<h2 style="font-size:20px;">Download another source video</h2><ul></ul><p style="text-align:center;"><button onclick="this.parentElement.parentElement.remove();">Close</button><button onclick="localStorage.setItem(\'other-source-viewed\', true);this.parentElement.parentElement.remove();">Close and don\'t show again</button></p>');
-          streams.forEach((value, index) => {
-            const li = document.createElement('li');
-            li.innerHTML = (value.Name?.replace(/-?(\d{8}T\d+Z)+((.)?(\w+))?/g, '').replace(/_/g, ' ') || 'Stream '+(index+1)) + '<button>Copy</button>';
-            li.querySelector('button').addEventListener('click', (e) => { copyToClipboard(value.StreamUrl); })
-            modal.querySelector('ul').appendChild(li);
-          });
-        }
+      const n = new Notify({
+        text: 'Getting links. Please wait',
+        type: 'info',
+        timeout: 2000
       });
-      document.querySelector('#eventTabControl').appendChild(element);
-    },
-    error: function(response) {
-      console.error(response)
-      new Notify({
-        text: 'Failed to get DeliveryInfo of lesson. Request failed.',
-        type: 'error'
-      }).show();
-    }
-  });
+      n.show();
+
+      const requestsList = [...list].map(item => {
+        let videoId = new URL(item.getAttribute('href')).searchParams.get('id');
+        const videoTitle = item.textContent.trim();
+        return requestDeliveryInfo(videoId)
+          .catch(error => {
+            new Notify({
+              text: 'Failed to get lesson link for "'+videoTitle+'"',
+              type: 'error',
+              timeout: null
+            }).show();
+          });
+      });
+
+      Promise.allSettled(requestsList)
+        .then(responses => {
+        // log(responses)
+        n.close();
+        let copyText = '';
+        responses.forEach(response => {
+          if (response.status == 'fulfilled' && response.value) {
+            const streamUrl = response.value?.[0];
+            if (streamUrl)
+              copyText += streamUrl + '\n';
+          }
+        });
+        if (copyText !== '')
+          copyToClipboard(copyText);
+      });
+    });
+    const li = document.createElement('li');
+    li.appendChild(button);
+    document.querySelector('ul.action-buttons').appendChild(li);
+  }
+  else if (location.pathname.includes('/Viewer.aspx')) {
+    const url = new URL(location.href)
+    const videoId = url.searchParams.get('id');
+
+    button.classList = 'event-tab-header';
+    button.style = 'display:inline-flex;align-items:center;position:absolute;bottom:30px;padding:5px 10px;text-decoration:none;cursor:pointer;';
+    button.addEventListener('click', e => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      if (!videoId) {
+        new Notify({
+          text: 'Failed to get Lesson ID.',
+          type: 'error',
+          timeout: null
+        }).show();
+        return;
+      }
+
+      const n = new Notify({
+        text: 'Getting links. Please wait',
+        type: 'info',
+        timeout: 2000
+      });
+      n.show();
+
+      requestDeliveryInfo(videoId)
+        .then(_streams => {
+          const streamUrl = _streams[0];
+          const streams = _streams[1];
+
+          if (streamUrl.endsWith('master.m3u8')) {
+            if (localStorage.getItem('popup-viewed') != 'true')
+              showModal('<h1 style="text-align:center;font-size:30px;">READ ME</h1> <p>To download the video follow these steps:</p> <ol><li>Download this program from <a href="https://github.com/Panopto-Video-DL/Panopto-Video-DL" target="_blank">GitHub</a> (No installation needed) and open it</li> <li>Paste the automatically copied link</li> <li>Set the destination folder</li> <li>Wait for the download to finish</li> </ol> <p style="text-align:center;"> <button onclick="this.parentElement.parentElement.remove();">Close</button> <button onclick="localStorage.setItem(\'popup-viewed\', true);this.parentElement.parentElement.remove();">Close and don\'t show again</button> </p>');
+
+            copyToClipboard(streamUrl);
+          }
+          else {
+            if (typeof GM_openInTab !== 'undefined')
+              GM_openInTab(streamUrl, false);
+            else
+              window.open(streamUrl);
+          }
+
+          if (streams.length && localStorage.getItem('other-source-viewed') != 'true') {
+            const modal = showModal('<h2 style="font-size:20px;">Download another source video</h2><ul></ul><p style="text-align:center;"><button onclick="this.parentElement.parentElement.remove();">Close</button><button onclick="localStorage.setItem(\'other-source-viewed\', true);this.parentElement.parentElement.remove();">Close and don\'t show again</button></p>');
+            streams.forEach((value, index) => {
+              const li = document.createElement('li');
+              li.innerHTML = (value.Name?.replace(/-?(\d{8}T\d+Z)+((.)?(\w+))?/g, '').replace(/_/g, ' ') || 'Stream '+(index+1)) + '<button>Copy</button>';
+              li.querySelector('button').addEventListener('click', (e) => { copyToClipboard(value.StreamUrl); })
+              modal.querySelector('ul').appendChild(li);
+            });
+          }
+        })
+        .catch(error => {
+          new Notify({
+            text: 'Failed to get lesson link',
+            type: 'error',
+            timeout: null
+          }).show();
+        })
+        .finally(() => n.close());
+    });
+    document.querySelector('#eventTabControl').appendChild(button);
+  }
+
 
   // Functions
-  function request(options) {
-    const onreadystatechange = function() {
-      if (this.readyState === 4 && (this.status >= 200 && this.status <= 299))
-        options.success(this.responseText);
-      else if (this.readyState === 4)
-        options.error(this.responseText);
-    };
-    if (typeof GM_xmlhttpRequest != 'undefined') {
-      options.onload = onreadystatechange;
-      GM_xmlhttpRequest(options);
-    } else {
-      const xhttp = new XMLHttpRequest();
-      xhttp.open(options.method || 'GET', options.url);
-      if (options.headers) {
-        for (let key in options.headers)
-          xhttp.setRequestHeader(key, options.headers[key])
-      }
-      xhttp.onreadystatechange = onreadystatechange;
-      xhttp.send(options.data);
-    }
+  function requestDeliveryInfo(videoId) {
+    return fetch(
+      location.origin + '/Panopto/Pages/Viewer/DeliveryInfo.aspx', {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json, text/javascript, */*; q=0.01',
+          'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
+        },
+        body: 'deliveryId='+videoId+'&isEmbed=true&responseType=json',
+      })
+      .then(respose => respose.json())
+      .then(data => {
+        const errorCode = data.ErrorCode;
+        if (errorCode)
+          throw new Error(data.ErrorMessage ?? '', { code: errorCode ?? -1 });
+
+        const streamUrl = data.Delivery?.PodcastStreams[0]?.StreamUrl;
+        const streams = (data.Delivery?.Streams || []).filter(x => x.StreamUrl != streamUrl);
+        if (!streamUrl)
+          throw new Error('Stream URL not ready yet');
+        return [streamUrl, streams];
+      })
+      .catch(error => {
+        log(error);
+        throw error;
+      });
   }
 
   function copyToClipboard(text) {
     if (typeof GM_setClipboard !== 'undefined') {
       GM_setClipboard(text, 'text');
       new Notify({
-        text: 'Link copied!',
+        text: 'Copied!',
         type: 'success'
       }).show();
     } else {
       navigator.clipboard.writeText(text).then(() => {
         new Notify({
-          text: 'Link copied!',
+          text: 'Copied!',
           type: 'success'
         }).show();
       }).catch(e => {
-        console.error(e);const modal = showModal('<h3>There was an error when copying the download link</h3> <p> Copy it manually: <input type="text" value=""></p>');
-        modal.querySelector('input').value = text;
+        log(e);
+        const modal = showModal('<h3>There was an error when copying the download link</h3> <p>Copy it manually:</p><textarea type="text" value="" rows="3" onclick="this.select();"></textarea><p style="text-align:center;"><button onclick="this.parentElement.parentElement.remove();">Close</button></p>');
+        modal.querySelector('textarea').value = text;
       });
     }
   }
@@ -158,6 +230,10 @@
       style.innerText = CSS;
       document.head.appendChild(style);
     }
+  }
+
+  function log(message, level='log') {
+    console[level]('%c Panopto-Video-DL ->', 'color:red;font-size:14px;', message);
   }
 
 })();
