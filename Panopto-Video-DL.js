@@ -2,9 +2,9 @@
 // @name         Panopto-Video-DL
 // @namespace    https://github.com/Panopto-Video-DL
 // @description  Video downloader for Panopto
-// @icon         https://www.panopto.com/wp-content/themes/panopto/library/images/favicons/favicon-96x96.png
+// @icon         https://t0.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://panopto.com&size=96
 // @author       Panopto-Video-DL
-// @version      3.3.1
+// @version      3.4.0
 // @copyright    2021, Panopto-Video-DL
 // @license      MIT
 // @homepage     https://github.com/Panopto-Video-DL/Panopto-Video-DL-browser
@@ -13,6 +13,8 @@
 // @require      https://greasyfork.org/scripts/401626-notify-library/code/Notify%20Library.js
 // @match        https://*.panopto.com/Panopto/Pages/Viewer.aspx?*id=*
 // @match        https://*.panopto.eu/Panopto/Pages/Viewer.aspx?*id=*
+// @match        https://*.panopto.com/Panopto/Pages/Embed.aspx?*id=*
+// @match        https://*.panopto.eu/Panopto/Pages/Embed.aspx?*id=*
 // @match        https://*.panopto.com/Panopto/Pages/Sessions/List.aspx*
 // @match        https://*.panopto.eu/Panopto/Pages/Sessions/List.aspx*
 // @connect      panopto.com
@@ -20,8 +22,11 @@
 // @grant        GM_addStyle
 // @grant        GM_setClipboard
 // @grant        GM_openInTab
+// @grant        GM_registerMenuCommand
 // @noframes
 // ==/UserScript==
+
+/* globals Notify */
 
 (function () {
   'use strict';
@@ -29,6 +34,8 @@
   addStyle('#Panopto-Video-DL{position:fixed;top:10%;left:50%;width:70%;padding:2em 3em 1em;background-color:#2d3436;transform:translateX(-50%);z-index:1050}#Panopto-Video-DL *{margin-bottom:10px;color:#fff!important;font-size:18px;}#Panopto-Video-DL > div {margin-top: 1em;}#Panopto-Video-DL ul,#Panopto-Video-DL ol,#Panopto-Video-DL li{margin:0 .5em;padding:0 .5em;list-style:decimal}#Panopto-Video-DL button{margin-left:5px;margin-right:5px;color:#000!important;font-size:16px;}#Panopto-Video-DL p{margin-top:0.5em;}#Panopto-Video-DL input{color:black!important;}#Panopto-Video-DL textarea{width:100%;color:black!important;resize:vertical;white-space:nowrap;}')
 
   if (location.pathname.includes('/List.aspx')) {
+    log('Service started');
+
     const button = document.createElement('button');
     button.className = 'css-t83cx2 css-tr3oo4 css-coghg4';
     button.role = 'button';
@@ -93,18 +100,56 @@
     document.querySelector('#actionHeader button')?.parentElement.appendChild(button);
   }
   else if (location.pathname.includes('/Viewer.aspx')) {
-    const url = new URL(location.href)
-    const videoId = url.searchParams.get('id');
+    log('Service started');
 
     const button = document.createElement('a');
     button.href = '#';
     button.innerHTML = '<span class="material-icons" style="font-size:15px;margin-bottom:-0.25rem;">file_download</span> Download';
     button.classList = 'event-tab-header';
     button.style = 'display:inline-flex;align-items:center;position:absolute;bottom:30px;padding:5px 10px;text-decoration:none;cursor:pointer;';
+
     button.addEventListener('click', e => {
       e.preventDefault();
       e.stopPropagation();
 
+      getVideoDownloadLink();
+    });
+    document.querySelector('#eventTabControl').appendChild(button);
+
+    if (typeof GM_registerMenuCommand !== 'undefined')
+      GM_registerMenuCommand('Download', () => getVideoDownloadLink());
+  }
+  else if (location.pathname.includes('/Embed.aspx')) {
+    const button = document.createElement('div');
+    button.role = 'button';
+    button.title = 'Download';
+    button.classList = 'button-control material-icons';
+    button.innerHTML = '<span class="material-icons">file_download</span>';
+
+    button.addEventListener('click', e => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      getVideoDownloadLink();
+    });
+
+    // document.querySelector('#navigationControls')?.appendChild(button);
+    const searcher = () => setTimeout(() => {
+      const nav = document.querySelector('#navigationControls');
+      if (!nav) return searcher();
+      nav.appendChild(button);
+    }, 1_000);
+    searcher();
+
+    if (typeof GM_registerMenuCommand !== 'undefined')
+      GM_registerMenuCommand('Download', () => getVideoDownloadLink());
+  }
+
+
+  // Functions
+  function getVideoDownloadLink() {
+      const url = new URL(location.href)
+      const videoId = url.searchParams.get('id');
       if (!videoId) {
         new Notify({
           text: 'Failed to get Lesson ID.',
@@ -157,12 +202,8 @@
           }).show();
         })
         .finally(() => n.close());
-    });
-    document.querySelector('#eventTabControl').appendChild(button);
-  }
+    }
 
-
-  // Functions
   function requestDeliveryInfo(videoId) {
     return fetch(
       location.origin + '/Panopto/Pages/Viewer/DeliveryInfo.aspx', {
