@@ -6,11 +6,12 @@ Download video from Panopto!
 
 ## Install
 
-- Install [TamperMonkey](https://www.tampermonkey.net/) Script-Manager browser extension  
+1. Install [TamperMonkey](https://www.tampermonkey.net/) Script-Manager browser extension  
 	- [Chrome](https://chrome.google.com/webstore/detail/tampermonkey/dhdgffkkebhmkfjojejmpbldmpobfkfo)  
-	- [Firefox](https://addons.mozilla.org/en-US/firefox/addon/tampermonkey/)  
-	- [Other browser](https://www.tampermonkey.net/)  
-- Install this script from [GreasyFork](https://greasyfork.org/scripts/423661-panopto-video-dl)
+		- Enable browser [`Developer Mode`](https://www.tampermonkey.net/faq.php#Q209)
+	- [Firefox](https://addons.mozilla.org/en-US/firefox/addon/tampermonkey/)
+	- [Others](https://www.tampermonkey.net/)  
+2. Install this script from [GreasyFork](https://greasyfork.org/scripts/423661-panopto-video-dl)
 
 ## Usage  
 

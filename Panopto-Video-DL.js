@@ -4,7 +4,7 @@
 // @description  Video downloader for Panopto
 // @icon         https://t0.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://panopto.com&size=96
 // @author       Panopto-Video-DL
-// @version      3.4.0
+// @version      3.5.0
 // @copyright    2021, Panopto-Video-DL
 // @license      MIT
 // @homepage     https://github.com/Panopto-Video-DL/Panopto-Video-DL-browser
@@ -171,7 +171,7 @@
           const streamUrl = _streams[0];
           const streams = _streams[1];
 
-          if (streamUrl.endsWith('master.m3u8')) {
+          if (streamUrl.endsWith('master.m3u8') || streamUrl.endsWith('master.panobf2')) {
             if (localStorage.getItem('popup-viewed') != 'true')
               showModal('<h1 style="text-align:center;font-size:30px;">READ ME</h1> <p>To download the video follow these steps:</p> <ol><li>Download this program from <a href="https://github.com/Panopto-Video-DL/Panopto-Video-DL" target="_blank">GitHub</a> (No installation needed) and open it</li> <li>Paste the automatically copied link</li> <li>Set the destination folder</li> <li>Wait for the download to finish</li> </ol> <p style="text-align:center;"> <button onclick="this.parentElement.parentElement.remove();">Close</button> <button onclick="localStorage.setItem(\'popup-viewed\', true);this.parentElement.parentElement.remove();">Close and don\'t show again</button> </p>');
 
