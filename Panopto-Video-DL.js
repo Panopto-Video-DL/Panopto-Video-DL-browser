@@ -4,7 +4,7 @@
 // @description  Video downloader for Panopto
 // @icon         https://t0.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://panopto.com&size=96
 // @author       Panopto-Video-DL
-// @version      3.5.1
+// @version      3.5.2
 // @copyright    2021, Panopto-Video-DL
 // @license      MIT
 // @homepage     https://github.com/Panopto-Video-DL/Panopto-Video-DL-browser
@@ -72,29 +72,29 @@
         const videoTitle = item.textContent.trim();
         return requestDeliveryInfo(videoId)
           .catch(error => {
-            new Notify({
-              text: 'Failed to get lesson link for "' + videoTitle + '"',
-              type: 'error',
-              timeout: null
-            }).show();
-          });
+          new Notify({
+            text: 'Failed to get lesson link for "' + videoTitle + '"',
+            type: 'error',
+            timeout: null
+          }).show();
+        });
       });
 
       Promise.allSettled(requestsList)
         .then(responses => {
-          // log(responses)
-          n.close();
-          let copyText = '';
-          responses.forEach(response => {
-            if (response.status == 'fulfilled' && response.value) {
-              const streamUrl = response.value?.[0];
-              if (streamUrl)
-                copyText += streamUrl + '\n';
-            }
-          });
-          if (copyText !== '')
-            copyToClipboard(copyText);
+        // log(responses)
+        n.close();
+        let copyText = '';
+        responses.forEach(response => {
+          if (response.status == 'fulfilled' && response.value) {
+            const streamUrl = response.value?.[0];
+            if (streamUrl)
+              copyText += streamUrl + '\n';
+          }
         });
+        if (copyText !== '')
+          copyToClipboard(copyText);
+      });
     });
 
     document.querySelector('#actionHeader button')?.parentElement.appendChild(button);
@@ -148,88 +148,87 @@
 
   // Functions
   function getVideoDownloadLink() {
-      const url = new URL(location.href)
-      const videoId = url.searchParams.get('id');
-      if (!videoId) {
-        new Notify({
-          text: 'Failed to get Lesson ID.',
-          type: 'error',
-          timeout: null
-        }).show();
-        return;
-      }
-
-      const n = new Notify({
-        text: 'Getting links. Please wait',
-        type: 'info',
-        timeout: 2000
-      });
-      n.show();
-
-      requestDeliveryInfo(videoId)
-        .then(_streams => {
-          const streamUrl = _streams[0];
-          const streams = _streams[1];
-
-          if (streamUrl.endsWith('master.m3u8') || streamUrl.match(/\.panobf\d+/)) {
-            if (localStorage.getItem('popup-viewed') != 'true')
-              showModal('<h1 style="text-align:center;font-size:30px;">READ ME</h1> <p>To download the video follow these steps:</p> <ol><li>Download this program from <a href="https://github.com/Panopto-Video-DL/Panopto-Video-DL" target="_blank">GitHub</a> (No installation needed) and open it</li> <li>Paste the automatically copied link</li> <li>Set the destination folder</li> <li>Wait for the download to finish</li> </ol> <p style="text-align:center;"> <button onclick="this.parentElement.parentElement.remove();">Close</button> <button onclick="localStorage.setItem(\'popup-viewed\', true);this.parentElement.parentElement.remove();">Close and don\'t show again</button> </p>');
-
-            copyToClipboard(streamUrl);
-          }
-          else {
-            if (typeof GM_openInTab !== 'undefined')
-              GM_openInTab(streamUrl, false);
-            else
-              window.open(streamUrl);
-          }
-
-          if (streams.length && localStorage.getItem('other-source-viewed') != 'true') {
-            const modal = showModal('<h2 style="font-size:20px;">Download another source video</h2><ul></ul><p style="text-align:center;"><button onclick="this.parentElement.parentElement.remove();">Close</button><button onclick="localStorage.setItem(\'other-source-viewed\', true);this.parentElement.parentElement.remove();">Close and don\'t show again</button></p>');
-            streams.forEach((value, index) => {
-              const li = document.createElement('li');
-              li.innerHTML = (value.Name?.replace(/-?(\d{8}T\d+Z)+((.)?(\w+))?/g, '').replace(/_/g, ' ') || 'Stream ' + (index + 1)) + '<button>Copy</button>';
-              li.querySelector('button').addEventListener('click', (e) => { copyToClipboard(value.StreamUrl); })
-              modal.querySelector('ul').appendChild(li);
-            });
-          }
-        })
-        .catch(error => {
-          new Notify({
-            text: 'Failed to get lesson link',
-            type: 'error',
-            timeout: null
-          }).show();
-        })
-        .finally(() => n.close());
+    const url = new URL(location.href)
+    const videoId = url.searchParams.get('id') ?? url.searchParams.get('tid');
+    const isTid = url.searchParams.has('tid');
+    if (!videoId) {
+      new Notify({
+        text: 'Failed to get Lesson ID.',
+        type: 'error',
+        timeout: null
+      }).show();
+      return;
     }
 
-  function requestDeliveryInfo(videoId) {
+    const n = new Notify({
+      text: 'Getting links. Please wait',
+      type: 'info',
+      timeout: 2000
+    });
+    n.show();
+
+    requestDeliveryInfo(videoId, isTid)
+      .then(_streams => {
+      const streamUrl = _streams[0];
+      const streams = _streams[1];
+
+      if (streamUrl.endsWith('master.m3u8') || streamUrl.match(/\.panobf\d+/)) {
+        if (localStorage.getItem('popup-viewed') != 'true')
+          showModal('<h1 style="text-align:center;font-size:30px;">READ ME</h1> <p>To download the video follow these steps:</p> <ol><li>Download this program from <a href="https://github.com/Panopto-Video-DL/Panopto-Video-DL" target="_blank">GitHub</a> (No installation needed) and open it</li> <li>Paste the automatically copied link</li> <li>Set the destination folder</li> <li>Wait for the download to finish</li> </ol> <p style="text-align:center;"> <button onclick="this.parentElement.parentElement.remove();">Close</button> <button onclick="localStorage.setItem(\'popup-viewed\', true);this.parentElement.parentElement.remove();">Close and don\'t show again</button> </p>');
+
+        copyToClipboard(streamUrl);
+      }
+      else {
+        if (typeof GM_openInTab !== 'undefined')
+          GM_openInTab(streamUrl, false);
+        else
+          window.open(streamUrl);
+      }
+
+      if (streams.length && localStorage.getItem('other-source-viewed') != 'true') {
+        const modal = showModal('<h2 style="font-size:20px;">Download another source video</h2><ul></ul><p style="text-align:center;"><button onclick="this.parentElement.parentElement.remove();">Close</button><button onclick="localStorage.setItem(\'other-source-viewed\', true);this.parentElement.parentElement.remove();">Close and don\'t show again</button></p>');
+        streams.forEach((value, index) => {
+          const li = document.createElement('li');
+          li.innerHTML = (value.Name?.replace(/-?(\d{8}T\d+Z)+((.)?(\w+))?/g, '').replace(/_/g, ' ') || 'Stream ' + (index + 1)) + '<button>Copy</button>';
+          li.querySelector('button').addEventListener('click', (e) => { copyToClipboard(value.StreamUrl); })
+          modal.querySelector('ul').appendChild(li);
+        });
+      }
+    })
+      .catch(error => {
+      log(error);
+      new Notify({
+        text: 'Failed to get lesson link',
+        type: 'error',
+        timeout: null
+      }).show();
+    })
+      .finally(() => n.close());
+  }
+
+  function requestDeliveryInfo(videoId, isTid) {
     return fetch(
       location.origin + '/Panopto/Pages/Viewer/DeliveryInfo.aspx', {
-      method: 'POST',
-      headers: {
-        'Accept': 'application/json, text/javascript, */*; q=0.01',
-        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
-      },
-      body: 'deliveryId=' + videoId + '&isEmbed=true&responseType=json',
-    })
+        method: 'POST',
+        headers: {
+          accept: 'application/json, text/javascript, */*; q=0.01',
+          'content-type': 'application/x-www-form-urlencoded;charset=UTF-8'
+        },
+        body: isTid ? `&tid=${videoId}&isLiveNotes=false&refreshAuthCookie=true&isActiveBroadcast=false&isEditing=false&isKollectiveAgentInstalled=false&isEmbed=false&responseType=json` : `deliveryId=${videoId}&isEmbed=true&responseType=json`
+      })
       .then(respose => respose.json())
       .then(data => {
-        const errorCode = data.ErrorCode;
-        if (errorCode)
-          throw new Error(data.ErrorMessage ?? '', { code: errorCode ?? -1 });
+      log(data);
+      const errorCode = data.ErrorCode;
+      if (errorCode)
+        throw new Error(data.ErrorMessage ?? '', { code: errorCode ?? -1 });
 
-        const streamUrl = data.Delivery?.PodcastStreams[0]?.StreamUrl;
-        const streams = (data.Delivery?.Streams || []).filter(x => x.StreamUrl != streamUrl);
-        if (!streamUrl)
-          throw new Error('Stream URL not ready yet');
-        return [streamUrl, streams];
-      })
-      .catch(error => {
-        log(error);
-        throw error;
-      });
+      const streamUrl = data.Delivery?.PodcastStreams[0]?.StreamUrl;
+      const streams = (data.Delivery?.Streams || []).filter(x => x.StreamUrl != streamUrl);
+      if (!streamUrl)
+        throw new Error('Stream URL not ready yet');
+      return [streamUrl, streams];
+    });
   }
 
   function copyToClipboard(text) {
