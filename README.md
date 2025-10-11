@@ -1,4 +1,6 @@
-# Panopto-Video-DL
+# Panopto-Video-DL-browser
+
+![Installs](https://img.shields.io/greasyfork/dt/423661-panopto-video-dl?style=for-the-badge)  
 
 Download video from Panopto!  
 
