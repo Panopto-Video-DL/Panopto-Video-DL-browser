@@ -171,6 +171,7 @@
       .then(_streams => {
       const streamUrl = _streams[0];
       const streams = _streams[1];
+      const captions = _streams[2];
 
       if (streamUrl.endsWith('master.m3u8') || streamUrl.match(/\.panobf\d+/)) {
         if (localStorage.getItem('popup-viewed') != 'true')
@@ -193,6 +194,12 @@
           li.querySelector('button').addEventListener('click', (e) => { copyToClipboard(value.StreamUrl); })
           modal.querySelector('ul').appendChild(li);
         });
+        if (captions.length > 0) {
+            const li = document.createElement('li');
+            li.innerHTML = 'Subtitles (.srt) <button>Download</button>';
+            li.querySelector('button').addEventListener('click', (e) => { downloadCaptions(captions, `${videoId}.srt`); });
+            modal.querySelector('ul').appendChild(li);
+        }
       }
     })
       .catch(error => {
@@ -207,28 +214,79 @@
   }
 
   function requestDeliveryInfo(videoId, isTid) {
-    return fetch(
+    const streamsBody = isTid ? `&tid=${videoId}&isLiveNotes=false&refreshAuthCookie=true&isActiveBroadcast=false&isEditing=false&isKollectiveAgentInstalled=false&isEmbed=false&responseType=json` : `deliveryId=${videoId}&isEmbed=true&responseType=json`;
+    const captionsBody = isTid ? `tid=${videoId}&getCaptions=true&language=1&responseType=json` : `deliveryId=${videoId}&getCaptions=true&language=1&responseType=json`;
+
+    const fetchStreams = fetch(
       location.origin + '/Panopto/Pages/Viewer/DeliveryInfo.aspx', {
         method: 'POST',
         headers: {
           accept: 'application/json, text/javascript, */*; q=0.01',
           'content-type': 'application/x-www-form-urlencoded;charset=UTF-8'
         },
-        body: isTid ? `&tid=${videoId}&isLiveNotes=false&refreshAuthCookie=true&isActiveBroadcast=false&isEditing=false&isKollectiveAgentInstalled=false&isEmbed=false&responseType=json` : `deliveryId=${videoId}&isEmbed=true&responseType=json`
+        body: streamsBody
       })
-      .then(respose => respose.json())
-      .then(data => {
-      log(data);
-      const errorCode = data.ErrorCode;
-      if (errorCode)
-        throw new Error(data.ErrorMessage ?? '', { code: errorCode ?? -1 });
+      .then(response => response.json());
 
-      const streamUrl = data.Delivery?.PodcastStreams[0]?.StreamUrl;
-      const streams = (data.Delivery?.Streams || []).filter(x => x.StreamUrl != streamUrl);
+    const fetchCaptions = fetch(
+      location.origin + '/Panopto/Pages/Viewer/DeliveryInfo.aspx', {
+        method: 'POST',
+        headers: {
+          accept: 'application/json, text/javascript, */*; q=0.01',
+          'content-type': 'application/x-www-form-urlencoded;charset=UTF-8'
+        },
+        body: captionsBody
+      })
+      .then(response => response.json());
+
+    return Promise.all([fetchStreams, fetchCaptions])
+      .then(([dataStreams, dataCaptions]) => {
+      log(dataStreams);
+      log(dataCaptions);
+      const errorCode = dataStreams.ErrorCode;
+      if (errorCode)
+        throw new Error(dataStreams.ErrorMessage ?? '', { code: errorCode ?? -1 });
+
+      const streamUrl = dataStreams.Delivery?.PodcastStreams[0]?.StreamUrl;
+      const streams = (dataStreams.Delivery?.Streams || []).filter(x => x.StreamUrl != streamUrl);
+      const captions = Array.isArray(dataCaptions) ? dataCaptions : [];
       if (!streamUrl)
         throw new Error('Stream URL not ready yet');
-      return [streamUrl, streams];
+      return [streamUrl, streams, captions];
     });
+  }
+
+  function downloadCaptions(captions, filename) {
+    let srtContent = "";
+    let counter = 1;
+
+    const formatTime = (val) => {
+        const hours = Math.floor(val / 3600);
+        const minutes = Math.floor((val % 3600) / 60);
+        const seconds = Math.floor(val % 60);
+        const milliseconds = Math.floor((val - Math.floor(val)) * 1000);
+        const pad = (num, size) => num.toString().padStart(size, '0');
+        return `${pad(hours, 2)}:${pad(minutes, 2)}:${pad(seconds, 2)},${pad(milliseconds, 3)}`;
+    }
+
+    captions.forEach(item => {
+        if (!item.Caption) return;
+        const start = item.Time;
+        const dur = item.CaptionDuration;
+        const end = start + dur;
+        srtContent += `${counter}\n${formatTime(start)} --> ${formatTime(end)}\n${item.Caption}\n\n`;
+        counter++;
+    })
+
+    const blob = new Blob([srtContent], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click()
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   }
 
   function copyToClipboard(text) {
