@@ -199,10 +199,10 @@
         }
         if (captions.length) {
           const captionList = modal.querySelector('#caption-list')
-          captions.forEach(item => {
+          captions.forEach((value, index) => {
             const li = document.createElement('li');
-            li.innerHTML = `Subtitle ${item.languageId}<button>Download</button>`;
-            li.querySelector('button').addEventListener('click', (e) => { downloadCaptions(item.content, `${videoId}_${item.languageId}.srt`); });
+            li.innerHTML = `Subtitle ${index+1}<button>Download</button>`;
+            li.querySelector('button').addEventListener('click', (e) => { downloadCaptions(item.content, `${videoId}_${index+1}.srt`); });
             captionList.appendChild(li);
           })
         }
