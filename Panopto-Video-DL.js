@@ -186,23 +186,29 @@
           window.open(streamUrl);
       }
 
-      if (streams.length && localStorage.getItem('other-source-viewed') != 'true') {
-        const modal = showModal('<h2 style="font-size:20px;">Download another source video</h2><ul></ul><p style="text-align:center;"><button onclick="this.parentElement.parentElement.remove();">Close</button><button onclick="localStorage.setItem(\'other-source-viewed\', true);this.parentElement.parentElement.remove();">Close and don\'t show again</button></p>');
-        streams.forEach((value, index) => {
-          const li = document.createElement('li');
-          li.innerHTML = (value.Name?.replace(/-?(\d{8}T\d+Z)+((.)?(\w+))?/g, '').replace(/_/g, ' ') || 'Stream ' + (index + 1)) + '<button>Copy</button>';
-          li.querySelector('button').addEventListener('click', (e) => { copyToClipboard(value.StreamUrl); })
-          modal.querySelector('ul').appendChild(li);
-        });
-        if (captions.length > 0) {
+      if ((streams.length || captions.length) && localStorage.getItem('other-source-viewed') != 'true') {
+        const modal = showModal('<h2 style="font-size:20px;">Download another source video</h2><ul id="stream-list"></ul><h2 style="font-size:20px;">Download subtitles</h2><ul id="caption-list"></ul><p style="text-align:center;"><button onclick="this.parentElement.parentElement.remove();">Close</button><button onclick="localStorage.setItem(\'other-source-viewed\', true);this.parentElement.parentElement.remove();">Close and don\'t show again</button></p>');
+        if (streams.length){
+          const streamList = modal.querySelector('#stream-list')
+          streams.forEach((value, index) => {
             const li = document.createElement('li');
-            li.innerHTML = 'Subtitles (.srt) <button>Download</button>';
-            li.querySelector('button').addEventListener('click', (e) => { downloadCaptions(captions, `${videoId}.srt`); });
-            modal.querySelector('ul').appendChild(li);
+            li.innerHTML = (value.Name?.replace(/-?(\d{8}T\d+Z)+((.)?(\w+))?/g, '').replace(/_/g, ' ') || 'Stream ' + (index + 1)) + '<button>Copy</button>';
+            li.querySelector('button').addEventListener('click', (e) => { copyToClipboard(value.StreamUrl); })
+            streamList.appendChild(li);
+          });
+        }
+        if (captions.length) {
+          const captionList = modal.querySelector('#caption-list')
+          captions.forEach(item => {
+            const li = document.createElement('li');
+            li.innerHTML = `Subtitle ${item.languageId}<button>Download</button>`;
+            li.querySelector('button').addEventListener('click', (e) => { downloadCaptions(item.content, `${videoId}_${item.languageId}.srt`); });
+            captionList.appendChild(li);
+          })
         }
       }
     })
-      .catch(error => {
+    .catch(error => {
       log(error);
       new Notify({
         text: 'Failed to get lesson link',
@@ -210,15 +216,14 @@
         timeout: null
       }).show();
     })
-      .finally(() => n.close());
+    .finally(() => n.close());
   }
 
   function requestDeliveryInfo(videoId, isTid) {
     const streamsBody = isTid ? `&tid=${videoId}&isLiveNotes=false&refreshAuthCookie=true&isActiveBroadcast=false&isEditing=false&isKollectiveAgentInstalled=false&isEmbed=false&responseType=json` : `deliveryId=${videoId}&isEmbed=true&responseType=json`;
-    const captionsBody = isTid ? `tid=${videoId}&getCaptions=true&language=1&responseType=json` : `deliveryId=${videoId}&getCaptions=true&language=1&responseType=json`;
 
-    const fetchStreams = fetch(
-      location.origin + '/Panopto/Pages/Viewer/DeliveryInfo.aspx', {
+    return fetch(
+        location.origin + '/Panopto/Pages/Viewer/DeliveryInfo.aspx', {
         method: 'POST',
         headers: {
           accept: 'application/json, text/javascript, */*; q=0.01',
@@ -226,33 +231,45 @@
         },
         body: streamsBody
       })
-      .then(response => response.json());
+      .then(response => response.json())
+      .then((dataStreams) => {
+        log(dataStreams);
+        const errorCode = dataStreams.ErrorCode;
+        if (errorCode)
+          throw new Error(dataStreams.ErrorMessage ?? '', { code: errorCode ?? -1 });
 
-    const fetchCaptions = fetch(
-      location.origin + '/Panopto/Pages/Viewer/DeliveryInfo.aspx', {
-        method: 'POST',
-        headers: {
-          accept: 'application/json, text/javascript, */*; q=0.01',
-          'content-type': 'application/x-www-form-urlencoded;charset=UTF-8'
-        },
-        body: captionsBody
-      })
-      .then(response => response.json());
+        const streamUrl = dataStreams.Delivery?.PodcastStreams[0]?.StreamUrl;
+        const streams = (dataStreams.Delivery?.Streams || []).filter(x => x.StreamUrl != streamUrl);
+        if (!streamUrl)
+          throw new Error('Stream URL not ready yet');
 
-    return Promise.all([fetchStreams, fetchCaptions])
-      .then(([dataStreams, dataCaptions]) => {
-      log(dataStreams);
-      log(dataCaptions);
-      const errorCode = dataStreams.ErrorCode;
-      if (errorCode)
-        throw new Error(dataStreams.ErrorMessage ?? '', { code: errorCode ?? -1 });
+        const captions = dataStreams.Delivery?.AvailableCaptions || [];
+        let captionPromises = [];
+        if (captions.length) {
+          captionPromises = captions.map(item => {
+            const languageId = item.Language;
+            const captionsBody = isTid ? `tid=${videoId}&getCaptions=true&language=${languageId}&responseType=json` : `deliveryId=${videoId}&getCaptions=true&language=${languageId}&responseType=json`;
 
-      const streamUrl = dataStreams.Delivery?.PodcastStreams[0]?.StreamUrl;
-      const streams = (dataStreams.Delivery?.Streams || []).filter(x => x.StreamUrl != streamUrl);
-      const captions = Array.isArray(dataCaptions) ? dataCaptions : [];
-      if (!streamUrl)
-        throw new Error('Stream URL not ready yet');
-      return [streamUrl, streams, captions];
+            return fetch(
+              location.origin + '/Panopto/Pages/Viewer/DeliveryInfo.aspx', {
+              method: 'POST',
+              headers: {
+              accept: 'application/json, text/javascript, */*; q=0.01',
+              'content-type': 'application/x-www-form-urlencoded;charset=UTF-8'
+              },
+              body: captionsBody
+            })
+            .then(response => response.json())
+            .then(data => ({
+              languageId,
+              content: data,
+            }))
+          });
+        }
+
+        return Promise.all(captionPromises).then(captionData => {
+          return [streamUrl, streams, captionData];
+        })
     });
   }
 
@@ -261,21 +278,21 @@
     let counter = 1;
 
     const formatTime = (val) => {
-        const hours = Math.floor(val / 3600);
-        const minutes = Math.floor((val % 3600) / 60);
-        const seconds = Math.floor(val % 60);
-        const milliseconds = Math.floor((val - Math.floor(val)) * 1000);
-        const pad = (num, size) => num.toString().padStart(size, '0');
-        return `${pad(hours, 2)}:${pad(minutes, 2)}:${pad(seconds, 2)},${pad(milliseconds, 3)}`;
+      const hours = Math.floor(val / 3600);
+      const minutes = Math.floor((val % 3600) / 60);
+      const seconds = Math.floor(val % 60);
+      const milliseconds = Math.floor((val - Math.floor(val)) * 1000);
+      const pad = (num, size) => num.toString().padStart(size, '0');
+      return `${pad(hours, 2)}:${pad(minutes, 2)}:${pad(seconds, 2)},${pad(milliseconds, 3)}`;
     }
 
     captions.forEach(item => {
-        if (!item.Caption) return;
-        const start = item.Time;
-        const dur = item.CaptionDuration;
-        const end = start + dur;
-        srtContent += `${counter}\n${formatTime(start)} --> ${formatTime(end)}\n${item.Caption}\n\n`;
-        counter++;
+      if (!item.Caption) return;
+      const start = item.Time;
+      const dur = item.CaptionDuration;
+      const end = start + dur;
+      srtContent += `${counter}\n${formatTime(start)} --> ${formatTime(end)}\n${item.Caption}\n\n`;
+      counter++;
     })
 
     const blob = new Blob([srtContent], { type: 'text/plain' });
