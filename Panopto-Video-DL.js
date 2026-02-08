@@ -4,7 +4,7 @@
 // @description  Video downloader for Panopto
 // @icon         https://t0.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://panopto.com&size=96
 // @author       Panopto-Video-DL
-// @version      3.5.2
+// @version      3.6.0
 // @copyright    2021, Panopto-Video-DL
 // @license      MIT
 // @homepage     https://github.com/Panopto-Video-DL/Panopto-Video-DL-browser
@@ -188,27 +188,25 @@
 
       if ((streams.length || captions.length) && localStorage.getItem('other-source-viewed') != 'true') {
         const modal = showModal('<h2 style="font-size:20px;">Download another source video</h2><ul id="stream-list"></ul><h2 style="font-size:20px;">Download subtitles</h2><ul id="caption-list"></ul><p style="text-align:center;"><button onclick="this.parentElement.parentElement.remove();">Close</button><button onclick="localStorage.setItem(\'other-source-viewed\', true);this.parentElement.parentElement.remove();">Close and don\'t show again</button></p>');
-        if (streams.length){
-          const streamList = modal.querySelector('#stream-list')
-          streams.forEach((value, index) => {
-            const li = document.createElement('li');
-            li.innerHTML = (value.Name?.replace(/-?(\d{8}T\d+Z)+((.)?(\w+))?/g, '').replace(/_/g, ' ') || 'Stream ' + (index + 1)) + '<button>Copy</button>';
-            li.querySelector('button').addEventListener('click', (e) => { copyToClipboard(value.StreamUrl); })
-            streamList.appendChild(li);
-          });
-        }
-        if (captions.length) {
-          const captionList = modal.querySelector('#caption-list')
-          captions.forEach((value, index) => {
-            const li = document.createElement('li');
-            li.innerHTML = `Subtitle ${index+1}<button>Download</button>`;
-            li.querySelector('button').addEventListener('click', (e) => { downloadCaptions(item.content, `${videoId}_${index+1}.srt`); });
-            captionList.appendChild(li);
-          })
-        }
+
+        const streamList = modal.querySelector('#stream-list')
+        streams.forEach((value, index) => {
+          const li = document.createElement('li');
+          li.innerHTML = (value.Name?.replace(/-?(\d{8}T\d+Z)+((.)?(\w+))?/g, '').replace(/_/g, ' ') || 'Stream ' + (index + 1)) + '<button>Copy</button>';
+          li.querySelector('button').addEventListener('click', () => { copyToClipboard(value.StreamUrl); })
+          streamList.appendChild(li);
+        });
+
+        const captionList = modal.querySelector('#caption-list')
+        captions.forEach((value) => {
+          const li = document.createElement('li');
+          li.innerHTML = `Subtitle ${value.languageId}<button>Download</button>`;
+          li.querySelector('button').addEventListener('click', () => { downloadCaptions(value.content, `${videoId}_${value.languageId}.srt`); });
+          captionList.appendChild(li);
+        })
       }
     })
-    .catch(error => {
+      .catch(error => {
       log(error);
       new Notify({
         text: 'Failed to get lesson link',
@@ -216,14 +214,14 @@
         timeout: null
       }).show();
     })
-    .finally(() => n.close());
+      .finally(() => n.close());
   }
 
   function requestDeliveryInfo(videoId, isTid) {
     const streamsBody = isTid ? `&tid=${videoId}&isLiveNotes=false&refreshAuthCookie=true&isActiveBroadcast=false&isEditing=false&isKollectiveAgentInstalled=false&isEmbed=false&responseType=json` : `deliveryId=${videoId}&isEmbed=true&responseType=json`;
 
     return fetch(
-        location.origin + '/Panopto/Pages/Viewer/DeliveryInfo.aspx', {
+      location.origin + '/Panopto/Pages/Viewer/DeliveryInfo.aspx', {
         method: 'POST',
         headers: {
           accept: 'application/json, text/javascript, */*; q=0.01',
@@ -233,43 +231,40 @@
       })
       .then(response => response.json())
       .then((dataStreams) => {
-        log(dataStreams);
-        const errorCode = dataStreams.ErrorCode;
-        if (errorCode)
-          throw new Error(dataStreams.ErrorMessage ?? '', { code: errorCode ?? -1 });
+      log(dataStreams);
+      const errorCode = dataStreams.ErrorCode;
+      if (errorCode)
+        throw new Error(dataStreams.ErrorMessage ?? '', { code: errorCode ?? -1 });
 
-        const streamUrl = dataStreams.Delivery?.PodcastStreams[0]?.StreamUrl;
-        const streams = (dataStreams.Delivery?.Streams || []).filter(x => x.StreamUrl != streamUrl);
-        if (!streamUrl)
-          throw new Error('Stream URL not ready yet');
+      const streamUrl = dataStreams.Delivery?.PodcastStreams[0]?.StreamUrl;
+      const streams = (dataStreams.Delivery?.Streams || []).filter(x => x.StreamUrl != streamUrl);
+      if (!streamUrl)
+        throw new Error('Stream URL not ready yet');
 
-        const captions = dataStreams.Delivery?.AvailableCaptions || [];
-        let captionPromises = [];
-        if (captions.length) {
-          captionPromises = captions.map(item => {
-            const languageId = item.Language;
-            const captionsBody = isTid ? `tid=${videoId}&getCaptions=true&language=${languageId}&responseType=json` : `deliveryId=${videoId}&getCaptions=true&language=${languageId}&responseType=json`;
+      const captions = dataStreams.Delivery?.AvailableCaptions || [];
+      const captionPromises = captions.map(item => {
+        const languageId = item.Language;
+        const captionsBody = isTid ? `tid=${videoId}&getCaptions=true&language=${languageId}&responseType=json` : `deliveryId=${videoId}&getCaptions=true&language=${languageId}&responseType=json`;
 
-            return fetch(
-              location.origin + '/Panopto/Pages/Viewer/DeliveryInfo.aspx', {
-              method: 'POST',
-              headers: {
+        return fetch(
+          location.origin + '/Panopto/Pages/Viewer/DeliveryInfo.aspx', {
+            method: 'POST',
+            headers: {
               accept: 'application/json, text/javascript, */*; q=0.01',
               'content-type': 'application/x-www-form-urlencoded;charset=UTF-8'
-              },
-              body: captionsBody
-            })
-            .then(response => response.json())
-            .then(data => ({
-              languageId,
-              content: data,
-            }))
-          });
-        }
+            },
+            body: captionsBody
+          })
+          .then(response => response.json())
+          .then(data => ({
+          languageId,
+          content: data,
+        }))
+      });
 
-        return Promise.all(captionPromises).then(captionData => {
-          return [streamUrl, streams, captionData];
-        })
+      return Promise.all(captionPromises).then(captionData => {
+        return [streamUrl, streams, captionData];
+      })
     });
   }
 
