@@ -1,10 +1,10 @@
 // ==UserScript==
 // @name         Panopto-Video-DL
 // @namespace    https://github.com/Panopto-Video-DL
-// @description  Video downloader for Panopto
+// @description  Video downloader for Panopto (one-click download with original filename)
 // @icon         https://t0.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://panopto.com&size=96
 // @author       Panopto-Video-DL
-// @version      3.6.0
+// @version      3.6.1
 // @copyright    2021, Panopto-Video-DL
 // @license      MIT
 // @homepage     https://github.com/Panopto-Video-DL/Panopto-Video-DL-browser
@@ -23,7 +23,10 @@
 // @grant        GM_setClipboard
 // @grant        GM_openInTab
 // @grant        GM_registerMenuCommand
+// @grant        GM_download
 // @noframes
+// @downloadURL https://update.greasyfork.org/scripts/423661/Panopto-Video-DL.user.js
+// @updateURL https://update.greasyfork.org/scripts/423661/Panopto-Video-DL.meta.js
 // ==/UserScript==
 
 /* globals Notify */
@@ -172,6 +175,7 @@
       const streamUrl = _streams[0];
       const streams = _streams[1];
       const captions = _streams[2];
+      const originalFilename = _streams[3];
 
       if (streamUrl.endsWith('master.m3u8') || streamUrl.match(/\.panobf\d+/)) {
         if (localStorage.getItem('popup-viewed') != 'true')
@@ -180,10 +184,7 @@
         copyToClipboard(streamUrl);
       }
       else {
-        if (typeof GM_openInTab !== 'undefined')
-          GM_openInTab(streamUrl, false);
-        else
-          window.open(streamUrl);
+        downloadVideo(streamUrl, originalFilename);
       }
 
       if ((streams.length || captions.length) && localStorage.getItem('other-source-viewed') != 'true') {
@@ -236,10 +237,15 @@
       if (errorCode)
         throw new Error(dataStreams.ErrorMessage ?? '', { code: errorCode ?? -1 });
 
-      const streamUrl = dataStreams.Delivery?.PodcastStreams[0]?.StreamUrl;
+      const mainPodcastStream = dataStreams.Delivery?.PodcastStreams?.[0];
+      const streamUrl = mainPodcastStream?.StreamUrl;
       const streams = (dataStreams.Delivery?.Streams || []).filter(x => x.StreamUrl != streamUrl);
       if (!streamUrl)
         throw new Error('Stream URL not ready yet');
+      const originalFilename = mainPodcastStream?.FileName
+        || mainPodcastStream?.Name
+        || dataStreams.Delivery?.SessionName
+        || '';
 
       const captions = dataStreams.Delivery?.AvailableCaptions || [];
       const captionPromises = captions.map(item => {
@@ -263,9 +269,80 @@
       });
 
       return Promise.all(captionPromises).then(captionData => {
-        return [streamUrl, streams, captionData];
+        return [streamUrl, streams, captionData, originalFilename];
       })
     });
+  }
+
+  function downloadVideo(streamUrl, originalFilename) {
+    const filename = getVideoFilename(streamUrl, originalFilename);
+
+    if (typeof GM_download !== 'undefined') {
+      try {
+        GM_download({
+          url: streamUrl,
+          name: filename,
+          saveAs: false,
+          onerror: (error) => {
+            log(error, 'error');
+            startAnchorDownload(streamUrl, filename);
+          }
+        });
+        return;
+      } catch (error) {
+        log(error, 'error');
+      }
+    }
+
+    startAnchorDownload(streamUrl, filename);
+  }
+
+  function startAnchorDownload(url, filename) {
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.rel = 'noopener noreferrer';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  }
+
+  function getVideoFilename(streamUrl, originalFilename) {
+    const cleanOriginal = sanitizeFilename(originalFilename || '');
+    const ext = getFileExtension(streamUrl);
+    if (cleanOriginal) {
+      if (ext === '' || cleanOriginal.toLowerCase().endsWith(ext.toLowerCase()))
+        return cleanOriginal;
+      return `${cleanOriginal}${ext}`;
+    }
+
+    const fromUrl = getFilenameFromUrl(streamUrl);
+    if (fromUrl)
+      return sanitizeFilename(fromUrl);
+
+    return `panopto-video${ext || '.mp4'}`;
+  }
+
+  function getFilenameFromUrl(streamUrl) {
+    try {
+      const pathname = new URL(streamUrl).pathname || '';
+      const rawFilename = pathname.substring(pathname.lastIndexOf('/') + 1);
+      return decodeURIComponent(rawFilename || '');
+    } catch {
+      return '';
+    }
+  }
+
+  function getFileExtension(streamUrl) {
+    const filename = getFilenameFromUrl(streamUrl);
+    const dotIndex = filename.lastIndexOf('.');
+    if (dotIndex <= 0 || dotIndex === filename.length - 1)
+      return '';
+    return filename.substring(dotIndex);
+  }
+
+  function sanitizeFilename(name) {
+    return name.replace(/[<>:"/\\|?*\x00-\x1F]/g, '_').trim();
   }
 
   function downloadCaptions(captions, filename) {
