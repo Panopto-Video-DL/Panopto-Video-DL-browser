@@ -19,6 +19,7 @@ Download video from Panopto!
 
 - Open video on Panopto website  
 - Click on **[Download]** button in the _bottom-left_ corner  
+	- For Embedded video, click on the **[Download] icon** in the _bottom-right_ corner of the video
 - Follow the instructions shown:  
 	- Paste the automatically copied link in [Panopto-Video-DL](https://github.com/Panopto-Video-DL/Panopto-Video-DL)  
 	or  
