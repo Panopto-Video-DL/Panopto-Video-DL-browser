@@ -4,7 +4,7 @@
 // @description  Video downloader for Panopto
 // @icon         https://t0.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://panopto.com&size=96
 // @author       Panopto-Video-DL
-// @version      3.6.0
+// @version      3.6.1
 // @copyright    2021, Panopto-Video-DL
 // @license      MIT
 // @homepage     https://github.com/Panopto-Video-DL/Panopto-Video-DL-browser
@@ -23,7 +23,6 @@
 // @grant        GM_setClipboard
 // @grant        GM_openInTab
 // @grant        GM_registerMenuCommand
-// @noframes
 // ==/UserScript==
 
 /* globals Notify */
@@ -38,6 +37,7 @@
 
     const button = document.createElement('button');
     button.className = 'css-t83cx2 css-tr3oo4 css-coghg4';
+    button.title = 'Panopto-Video-DL Download All';
     button.role = 'button';
     button.style.marginLeft = '0.5rem';
     button.innerHTML = '<span class="material-icons css-6xugel" style="font-size: 18px;margin-bottom:-0.25rem;">file_download</span>Download';
@@ -104,6 +104,7 @@
 
     const button = document.createElement('a');
     button.href = '#';
+    button.title = 'Panopto-Video-DL Download';
     button.innerHTML = '<span class="material-icons" style="font-size:15px;margin-bottom:-0.25rem;">file_download</span> Download';
     button.classList = 'event-tab-header';
     button.style = 'display:inline-flex;align-items:center;position:absolute;bottom:30px;padding:5px 10px;text-decoration:none;cursor:pointer;';
@@ -122,7 +123,7 @@
   else if (location.pathname.includes('/Embed.aspx')) {
     const button = document.createElement('div');
     button.role = 'button';
-    button.title = 'Download';
+    button.title = 'Panopto-Video-DL Download';
     button.classList = 'button-control material-icons';
     button.innerHTML = '<span class="material-icons">file_download</span>';
 
@@ -137,7 +138,7 @@
     const searcher = () => setTimeout(() => {
       const nav = document.querySelector('#navigationControls');
       if (!nav) return searcher();
-      nav.appendChild(button);
+      nav.prepend(button);
     }, 1_000);
     searcher();
 
